@@ -1,0 +1,441 @@
+// Jenkinsfile - 智能网联平台 CI/CD 流水线
+// 项目: 智能网联平台运维工具开发
+
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'registry.example.com'
+        APP_NAME = 'intelligent-network'
+        DOCKER_IMAGE = "${DOCKER_REGISTRY}/${APP_NAME}"
+        GIT_DEPTH = '1'
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 1, unit: 'HOURS')
+        timestamps()
+    }
+    
+    parameters {
+        choice(
+            name: 'BRANCH',
+            choices: ['main', 'develop', 'release/*'],
+            description: '选择要构建的分支'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: '跳过测试阶段'
+        )
+        booleanParam(
+            name: 'DEPLOY_TO_PROD',
+            defaultValue: false,
+            description: '部署到生产环境'
+        )
+    }
+    
+    stages {
+        stage('环境准备') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "开始构建: ${APP_NAME}"
+                    echo "分支: ${params.BRANCH}"
+                    echo "时间: ${new Date().format('yyyy-MM-dd HH:mm:ss')}"
+                    echo "========================================="
+                }
+                
+                sh '''
+                    # 检查环境
+                    echo "检查 Docker 版本..."
+                    docker --version
+                    
+                    echo "检查 Docker Compose 版本..."
+                    docker-compose --version
+                    
+                    echo "检查 Git 版本..."
+                    git --version
+                '''
+                
+                // 清理工作空间
+                cleanWs()
+            }
+        }
+        
+        stage('代码检出') {
+            steps {
+                script {
+                    echo "从 GitLab 检出代码..."
+                    
+                    def gitlabBranch = params.BRANCH
+                    
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: gitlabBranch]],
+                        userRemoteConfigs: [[
+                            url: 'https://gitlab.example.com/project/intelligent-network.git',
+                            credentialsId: 'gitlab-credentials'
+                        ]],
+                        extensions: [
+                            [$class: 'CloneOption', depth: 1, noTags: true],
+                            [$class: 'PruneStaleBranch']
+                        ]
+                    ])
+                    
+                    // 获取提交信息
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    
+                    env.GIT_COMMIT_MSG = sh(
+                        script: "git log -1 --pretty=%B",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "Commit: ${env.GIT_COMMIT_SHORT}"
+                    echo "Message: ${env.GIT_COMMIT_MSG}"
+                }
+            }
+        }
+        
+        stage('依赖安装') {
+            steps {
+                script {
+                    echo "安装项目依赖..."
+                    
+                    // Python 项目
+                    if (fileExists('requirements.txt')) {
+                        sh '''
+                            python3 -m venv venv
+                            . venv/bin/activate
+                            pip install --upgrade pip
+                            pip install -r requirements.txt
+                            pip install pytest pytest-cov
+                        '''
+                    }
+                    
+                    // Node.js 项目
+                    if (fileExists('package.json')) {
+                        sh '''
+                            npm ci --cache .npm
+                            npm run build
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('代码检查') {
+            steps {
+                script {
+                    echo "执行代码静态检查..."
+                    
+                    // Python 代码检查
+                    if (fileExists('requirements.txt')) {
+                        sh '''
+                            . venv/bin/activate
+                            pylint **/*.py --disable=all --enable=E,F || true
+                            mypy **/*.py --ignore-missing-imports || true
+                        '''
+                    }
+                    
+                    // 安全扫描
+                    sh '''
+                        echo "执行安全扫描..."
+                        # 使用 trivy 扫描镜像漏洞
+                        # trivy image --severity HIGH,CRITICAL alpine:latest || true
+                    '''
+                }
+            }
+        }
+        
+        stage('单元测试') {
+            when {
+                expression { !params.SKIP_TESTS }
+            }
+            steps {
+                script {
+                    echo "运行单元测试..."
+                    
+                    try {
+                        if (fileExists('requirements.txt')) {
+                            sh '''
+                                . venv/bin/activate
+                                pytest tests/ \
+                                    --cov=. \
+                                    --cov-report=xml \
+                                    --cov-report=html \
+                                    --junitxml=test-results.xml \
+                                    -v
+                            '''
+                        }
+                        
+                        if (fileExists('package.json')) {
+                            sh '''
+                                npm test -- --coverage --coverageReporters=cobertura
+                            '''
+                        }
+                        
+                        // 收集测试结果
+                        junit 'test-results.xml'
+                        coverageAdvisor()
+                        
+                    } catch (Exception e) {
+                        echo "测试失败: ${e.message}"
+                        unstable("测试未完全通过")
+                    }
+                }
+            }
+        }
+        
+        stage('构建 Docker 镜像') {
+            steps {
+                script {
+                    echo "构建 Docker 镜像..."
+                    
+                    def imageTag = "${env.BRANCH}-${env.GIT_COMMIT_SHORT}-${new Date().format('yyyyMMddHHmmss')}"
+                    env.DOCKER_IMAGE_TAG = imageTag
+                    
+                    // 构建镜像
+                    sh """
+                        docker build \
+                            -t ${DOCKER_IMAGE}:${imageTag} \
+                            -t ${DOCKER_IMAGE}:${env.BRANCH}-latest \
+                            --build-arg BUILD_DATE=${new Date().format('yyyy-MM-dd')} \
+                            --build-arg VCS_REF=${env.GIT_COMMIT_SHORT} \
+                            --build-arg VERSION=${imageTag} \
+                            .
+                    """
+                    
+                    // 推送镜像
+                    sh """
+                        docker login ${DOCKER_REGISTRY} -u \${REGISTRY_USER} -p \${REGISTRY_TOKEN}
+                        docker push ${DOCKER_IMAGE}:${imageTag}
+                        docker push ${DOCKER_IMAGE}:${env.BRANCH}-latest
+                    """
+                    
+                    echo "镜像构建完成: ${DOCKER_IMAGE}:${imageTag}"
+                }
+            }
+        }
+        
+        stage('集成测试') {
+            steps {
+                script {
+                    echo "运行集成测试..."
+                    
+                    // 启动测试环境
+                    sh '''
+                        docker-compose -f docker-compose.test.yml up -d
+                        
+                        # 等待服务启动
+                        sleep 30
+                        
+                        # 执行健康检查
+                        curl -f http://localhost:8080/health || exit 1
+                        
+                        # 执行 API 测试
+                        ./scripts/integration-test.sh || exit 1
+                        
+                        # 清理测试环境
+                        docker-compose -f docker-compose.test.yml down -v
+                    '''
+                }
+            }
+        }
+        
+        stage('镜像扫描') {
+            steps {
+                script {
+                    echo "扫描镜像漏洞..."
+                    
+                    sh """
+                        # 使用 Trivy 扫描
+                        trivy image \
+                            --severity HIGH,CRITICAL \
+                            --exit-code 0 \
+                            --no-progress \
+                            ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                        
+                        # 生成扫描报告
+                        trivy image \
+                            --format json \
+                            --output scan-results.json \
+                            ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                    """
+                    
+                    // 上传扫描报告
+                    archiveArtifacts artifacts: 'scan-results.json', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('部署到测试环境') {
+            steps {
+                script {
+                    echo "部署到测试环境..."
+                    
+                    sh """
+                        # SSH 到测试服务器
+                        ssh -o StrictHostKeyChecking=no ${TEST_SERVER} << 'EOF'
+                            docker login ${DOCKER_REGISTRY} -u \${REGISTRY_USER} -p \${REGISTRY_TOKEN}
+                            docker pull ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                            
+                            # 停止旧容器
+                            docker stop ${APP_NAME} || true
+                            docker rm ${APP_NAME} || true
+                            
+                            # 启动新容器
+                            docker run -d \
+                                --name ${APP_NAME} \
+                                --restart always \
+                                --network monitoring \
+                                -p 8080:8080 \
+                                -e ENV=testing \
+                                -e BUILD=${env.DOCKER_IMAGE_TAG} \
+                                ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                            
+                            # 健康检查
+                            sleep 10
+                            curl -f http://localhost:8080/health
+                            
+                            echo "测试环境部署完成"
+                        EOF
+                    """
+                }
+            }
+        }
+        
+        stage('部署到生产环境') {
+            when {
+                expression { params.DEPLOY_TO_PROD }
+            }
+            steps {
+                script {
+                    echo "部署到生产环境..."
+                    
+                    input message: '确认部署到生产环境?', ok: '确认'
+                    
+                    sh """
+                        # 使用蓝绿部署策略
+                        ssh ${PROD_SERVER} << 'EOF'
+                            docker login ${DOCKER_REGISTRY} -u \${REGISTRY_USER} -p \${REGISTRY_TOKEN}
+                            
+                            # 拉取新镜像
+                            docker pull ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                            
+                            # 启动新容器 (blue-green)
+                            docker run -d \\
+                                --name ${APP_NAME}-new \\
+                                --restart always \\
+                                --network monitoring \\
+                                -p 8081:8080 \\
+                                -e ENV=production \\
+                                ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}
+                            
+                            # 健康检查
+                            sleep 30
+                            curl -f http://localhost:8081/health || {
+                                docker stop ${APP_NAME}-new
+                                echo "健康检查失败，部署回滚"
+                                exit 1
+                            }
+                            
+                            # 切换流量
+                            docker stop ${APP_NAME} || true
+                            docker rm ${APP_NAME} || true
+                            docker rename ${APP_NAME}-new ${APP_NAME}
+                            
+                            # 清理旧镜像
+                            docker image prune -f
+                            
+                            echo "生产环境部署完成"
+                        EOF
+                    """
+                    
+                    // 发送部署通知
+                    slackSend(
+                        channel: '#deployments',
+                        color: 'good',
+                        message: "✅ 生产环境部署成功\n应用: ${APP_NAME}\n版本: ${env.DOCKER_IMAGE_TAG}\n提交: ${env.GIT_COMMIT_SHORT}"
+                    )
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                // 记录构建信息
+                echo "========================================="
+                echo "构建完成: ${currentBuild.result ?: 'SUCCESS'}"
+                echo "时间: ${new Date().format('yyyy-MM-dd HH:mm:ss')}"
+                echo "镜像: ${DOCKER_IMAGE}:${env.DOCKER_IMAGE_TAG}"
+                echo "========================================="
+            }
+            
+            // 清理
+            sh '''
+                docker system prune -f || true
+                docker builder prune -f || true
+            '''
+        }
+        
+        success {
+            script {
+                echo "构建成功!"
+                
+                // 更新构建信息
+                currentBuild.displayName = "#${BUILD_NUMBER} (${env.GIT_COMMIT_SHORT})"
+                
+                // 发送成功通知
+                emailext(
+                    subject: "[成功] ${APP_NAME} 构建 #${BUILD_NUMBER}",
+                    body: """
+                        构建成功！
+                        
+                        项目: ${APP_NAME}
+                        分支: ${params.BRANCH}
+                        版本: ${env.DOCKER_IMAGE_TAG}
+                        提交: ${env.GIT_COMMIT_SHORT}
+                        提交信息: ${env.GIT_COMMIT_MSG}
+                        
+                        构建日志: ${env.BUILD_URL}
+                    """,
+                    to: 'devops@example.com'
+                )
+            }
+        }
+        
+        failure {
+            script {
+                echo "构建失败!"
+                
+                // 发送失败通知
+                emailext(
+                    subject: "[失败] ${APP_NAME} 构建 #${BUILD_NUMBER}",
+                    body: """
+                        构建失败！
+                        
+                        项目: ${APP_NAME}
+                        分支: ${params.BRANCH}
+                        提交: ${env.GIT_COMMIT_SHORT}
+                        提交信息: ${env.GIT_COMMIT_MSG}
+                        
+                        构建日志: ${env.BUILD_URL}
+                    """,
+                    to: 'devops@example.com'
+                )
+                
+                slackSend(
+                    channel: '#devops-alerts',
+                    color: 'danger',
+                    message: "❌ 构建失败: ${APP_NAME} #${BUILD_NUMBER}"
+                )
+            }
+        }
+    }
+}
