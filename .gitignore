@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.env
+
+# 日志与产物
+*.log
+*.prom
+test-results.xml
+scan-results.json
+htmlcov/
+.coverage
+
+# 打包产物
+*.tar.gz
+*.zip
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -115,27 +115,28 @@ scrape_configs:
           service: 'prometheus'
 
   # Node Exporter - 节点资源监控
+  # 注：以下为示例占位地址，部署前请替换为实际节点 IP
   - job_name: 'node'
     static_configs:
-      - targets: 
-        - '192.168.1.101:9100'
-        - '192.168.1.102:9100'
-        - '192.168.1.103:9100'
+      - targets:
+        - 'YOUR_NODE_IP_1:9100'
+        - 'YOUR_NODE_IP_2:9100'
+        - 'YOUR_NODE_IP_3:9100'
         labels:
           service: 'node-exporter'
 
   # Docker 监控
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['192.168.1.101:8080']
+      - targets: ['YOUR_NODE_IP_1:8080']
 
   # 应用服务监控
   - job_name: 'application'
     static_configs:
-      - targets: ['192.168.1.101:9113']
+      - targets: ['YOUR_NODE_IP_1:9113']
         labels:
           service: 'web-api'
-      - targets: ['192.168.1.102:9114']
+      - targets: ['YOUR_NODE_IP_2:9114']
         labels:
           service: 'jenkins'
 EOF
