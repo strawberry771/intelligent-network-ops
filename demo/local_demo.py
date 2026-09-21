@@ -13,6 +13,7 @@ import gzip
 import importlib.util
 import logging
 from pathlib import Path
+import re
 import socket
 import sys
 from tempfile import TemporaryDirectory
@@ -33,6 +34,18 @@ def load_legacy_module():
         spec.loader.exec_module(module)
     module.logger.setLevel(logging.ERROR)
     return module
+
+
+def parse_metric_values(metrics: str) -> dict[str, int]:
+    """Read service_status values from the existing reporter's text output."""
+    return {
+        service: int(value)
+        for service, value in re.findall(
+            r'^service_status\{service="([^"]+)"\}[ \t]+([01])[ \t]*$',
+            metrics,
+            re.MULTILINE,
+        )
+    }
 
 
 def run_demo():
@@ -71,12 +84,9 @@ def run_demo():
         metrics = reporter.export_prometheus_metrics(results)
         if "demo_service" not in report or "unused_local_port" not in report:
             raise RuntimeError("Inspection report omitted a sample service")
-        for expected in (
-            'service_status{service="demo_service"} 1',
-            'service_status{service="unused_local_port"} 0',
-        ):
-            if expected not in metrics:
-                raise RuntimeError(f"Missing sample metric: {expected}")
+        metric_values = parse_metric_values(metrics)
+        if metric_values != {"demo_service": 1, "unused_local_port": 0}:
+            raise RuntimeError(f"Unexpected sample metrics: {metric_values}")
 
         now = datetime.now()
         old = now - timedelta(hours=48)
@@ -105,8 +115,8 @@ def run_demo():
     print("[LOCAL DEMO: loopback service + synthetic sample logs]")
     print(f"demo_service={statuses['demo_service']}")
     print(f"unused_local_port={statuses['unused_local_port']}")
-    print("prometheus_healthy=1")
-    print("prometheus_unreachable=0")
+    print(f"prometheus_healthy={metric_values['demo_service']}")
+    print(f"prometheus_unreachable={metric_values['unused_local_port']}")
     print(f"plain_match_count={len(plain_matches)}")
     print(f"plain_match={plain_matches[0]['line'].split(' ', 2)[2]}")
     print(f"gzip_match_count={len(gzip_matches)}")

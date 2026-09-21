@@ -50,8 +50,8 @@
   <text x="75" y="367" class="zh small">Python 服务巡检与日志检索</text>
   <line x1="339" y1="336" x2="375" y2="336" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
   <text x="398" y="317" class="zh body">TCP 探测 / 正则与 .gz 日志检索</text>
-  <text x="398" y="344" class="zh cap">巡检报告 · textfile 指标 · 邮件接口</text>
-  <text x="398" y="371" class="zh small">本地演示仅覆盖 TCP、报告、指标和日志</text>
+  <text x="398" y="344" class="zh cap">巡检报告 · 指标文本 · 邮件接口</text>
+  <text x="398" y="371" class="zh small">本地演示仅覆盖 TCP、报告、指标文本和日志</text>
   <line x1="822" y1="336" x2="858" y2="336" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
   <text x="881" y="318" class="zh value">减少重复核查步骤</text>
   <text x="881" y="348" class="zh cap">本地样例输出可复现</text>

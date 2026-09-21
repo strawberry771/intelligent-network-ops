@@ -40,6 +40,21 @@ class LocalDemoTests(unittest.TestCase):
         self.assertIn("old_entry_filtered=true", result.stdout)
         self.assertIn("data_scope=local_sample_only", result.stdout)
 
+    def test_metric_values_come_from_the_generated_metrics_text(self):
+        from demo import local_demo
+
+        parser = getattr(local_demo, "parse_metric_values", None)
+        self.assertIsNotNone(parser)
+        sample = (
+            '# HELP service_status Demo\n'
+            'service_status{service="demo_service"} 0\n'
+            'service_status{service="unused_local_port"} 1\n'
+        )
+        self.assertEqual(
+            parser(sample),
+            {"demo_service": 0, "unused_local_port": 1},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
