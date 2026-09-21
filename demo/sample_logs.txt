@@ -1,0 +1,3 @@
+{NOW} INFO demo service started
+{NOW} ERROR sample request timed out
+{OLD} CRITICAL historical sample alert

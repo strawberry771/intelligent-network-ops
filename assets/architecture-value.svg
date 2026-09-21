@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">智能网联平台运维工具架构与价值示意图</title>
+  <desc id="desc">依据仓库现有脚本绘制的监控、巡检和发布三条链路。此图不是运行截图，右侧价值是设计目标而非已测量的生产效果。</desc>
+  <defs>
+    <style>
+      .zh{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans CJK SC','Microsoft YaHei',sans-serif}
+      .mono{font-family:Consolas,'SFMono-Regular',monospace}
+      .title{fill:#11263f;font-size:30px;font-weight:700}
+      .sub{fill:#5e7188;font-size:15px}
+      .lane{fill:#ffffff;stroke:#d8e6f5;stroke-width:1.5}
+      .small{fill:#687b91;font-size:14px}
+      .body{fill:#233b55;font-size:17px;font-weight:600}
+      .file{fill:#335776;font-size:14px}
+      .value{fill:#102f4a;font-size:19px;font-weight:700}
+      .cap{fill:#55718c;font-size:14px}
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#87a5c6"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="620" fill="#f7faff"/>
+  <rect x="0" y="0" width="1200" height="8" fill="#2563eb"/>
+  <text x="48" y="55" class="zh title">智能网联平台运维工具</text>
+  <text x="48" y="86" class="zh sub">从已有代码看三条工作链路：监控部署、日常巡检与发布运维</text>
+  <rect x="849" y="31" width="303" height="39" rx="19" fill="#e7f0ff"/>
+  <text x="1001" y="56" text-anchor="middle" class="zh" fill="#1d5dd1" font-size="15" font-weight="700">架构示意图 · 非运行截图</text>
+  <text x="48" y="121" class="zh small">现有文件</text>
+  <text x="415" y="121" class="zh small">代码能力 / 依赖</text>
+  <text x="884" y="121" class="zh small">预期价值与验证边界</text>
+
+  <rect x="48" y="137" width="1104" height="124" rx="16" class="lane"/>
+  <rect x="48" y="137" width="7" height="124" rx="3" fill="#2563eb"/>
+  <text x="75" y="171" class="zh" fill="#2563eb" font-size="15" font-weight="700">01 监控部署</text>
+  <text x="75" y="203" class="mono file">deploy_monitoring.sh</text>
+  <text x="75" y="230" class="zh small">Prometheus / Grafana 配置脚本</text>
+  <line x1="339" y1="199" x2="375" y2="199" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="398" y="180" class="zh body">资源指标抓取与告警规则</text>
+  <text x="398" y="207" class="zh cap">CPU · 内存 · 磁盘 · 服务可用性</text>
+  <text x="398" y="234" class="zh small">Node Exporter / cAdvisor 需另行部署</text>
+  <line x1="822" y1="199" x2="858" y2="199" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="881" y="181" class="zh value">指标可见与异常发现</text>
+  <text x="881" y="211" class="zh cap">设计目标，非线上效果数据</text>
+  <text x="881" y="237" class="zh small">部署与联调：需真实 Linux 环境</text>
+
+  <rect x="48" y="274" width="1104" height="124" rx="16" class="lane"/>
+  <rect x="48" y="274" width="7" height="124" rx="3" fill="#0e7490"/>
+  <text x="75" y="308" class="zh" fill="#0e7490" font-size="15" font-weight="700">02 日常巡检</text>
+  <text x="75" y="340" class="mono file">service_checker.py</text>
+  <text x="75" y="367" class="zh small">Python 服务巡检与日志检索</text>
+  <line x1="339" y1="336" x2="375" y2="336" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="398" y="317" class="zh body">TCP 探测 / 正则与 .gz 日志检索</text>
+  <text x="398" y="344" class="zh cap">巡检报告 · textfile 指标 · 邮件接口</text>
+  <text x="398" y="371" class="zh small">本地演示仅覆盖 TCP、报告、指标和日志</text>
+  <line x1="822" y1="336" x2="858" y2="336" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="881" y="318" class="zh value">减少重复核查步骤</text>
+  <text x="881" y="348" class="zh cap">本地样例输出可复现</text>
+  <text x="881" y="374" class="zh small">非生产巡检 / 非生产日志</text>
+
+  <rect x="48" y="411" width="1104" height="124" rx="16" class="lane"/>
+  <rect x="48" y="411" width="7" height="124" rx="3" fill="#0f9f75"/>
+  <text x="75" y="445" class="zh" fill="#0f9f75" font-size="15" font-weight="700">03 发布运维</text>
+  <text x="75" y="476" class="mono file">Jenkinsfile · cicd_manager.py</text>
+  <text x="75" y="504" class="mono file">docker_manager.sh</text>
+  <line x1="339" y1="473" x2="375" y2="473" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="398" y="455" class="zh body">GitLab → Jenkins → Docker</text>
+  <text x="398" y="482" class="zh cap">镜像构建、部署、回滚与容器操作</text>
+  <text x="398" y="509" class="zh small">流水线定义与运维脚本，不含应用仓库</text>
+  <line x1="822" y1="473" x2="858" y2="473" stroke="#87a5c6" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="881" y="455" class="zh value">发布步骤标准化</text>
+  <text x="881" y="485" class="zh cap">代码链路可查，未作端到端实测</text>
+  <text x="881" y="511" class="zh small">需 Jenkins / Docker / Linux 联调</text>
+
+  <text x="48" y="576" class="zh" fill="#4c637c" font-size="14">依据仓库现有文件整理；箭头表示设计链路，不代表三条链路均已在本地或生产环境完整运行。</text>
+  <text x="48" y="602" class="mono" fill="#8093a8" font-size="12">Intelligent Network Ops · architecture &amp; value map</text>
+</svg>
