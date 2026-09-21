@@ -246,7 +246,8 @@ class LogSearcher:
         
         return results
     
-    def search_all_logs(self, pattern: str, service: str = None) -> Dict[str, List]:
+    def search_all_logs(self, pattern: str, service: str = None,
+                        since_hours: int = 24) -> Dict[str, List]:
         """在所有日志中搜索"""
         log_paths = self.config._config.get("log_paths", {})
         all_results = {}
@@ -256,7 +257,7 @@ class LogSearcher:
                 continue
             
             logger.info(f"搜索日志: {log_name} -> {log_path}")
-            results = self.search_in_file(log_path, pattern)
+            results = self.search_in_file(log_path, pattern, since_hours=since_hours)
             if results:
                 all_results[log_name] = results
         

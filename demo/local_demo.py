@@ -26,7 +26,7 @@ SAMPLE_LOGS = Path(__file__).with_name("sample_logs.txt")
 
 
 def load_legacy_module():
-    """Import the unchanged Linux script without opening /var/log on this host."""
+    """Import the Linux script without opening /var/log on this host."""
     spec = importlib.util.spec_from_file_location("local_demo_service_checker", LEGACY_SCRIPT)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -99,6 +99,10 @@ def run_demo():
         with gzip.open(compressed_log, "wt", encoding="utf-8") as stream:
             stream.write(f"{now:%Y-%m-%d %H:%M:%S} WARNING compressed sample retry\n")
 
+        config._config["log_paths"] = {
+            "sample_plain": str(plain_log),
+            "sample_gzip": str(compressed_log),
+        }
         searcher = legacy.LogSearcher(config)
         plain_matches = searcher.search_in_file(
             str(plain_log), r"ERROR|CRITICAL", since_hours=24
@@ -111,6 +115,13 @@ def run_demo():
         )
         if len(plain_matches) != 1 or len(gzip_matches) != 1 or old_matches:
             raise RuntimeError("Sample log search did not match the expected time window")
+        error_summary = searcher.get_error_summary(hours=24)
+        summary_counts = {
+            kind: item["count"] for kind, item in error_summary.items()
+        }
+        if summary_counts != {"ERROR": 1, "WARNING": 1, "CRITICAL": 0,
+                              "FAILED": 0, "TIMEOUT": 0}:
+            raise RuntimeError(f"Unexpected sample error summary: {summary_counts}")
 
     print("[LOCAL DEMO: loopback service + synthetic sample logs]")
     print(f"demo_service={statuses['demo_service']}")
@@ -122,6 +133,11 @@ def run_demo():
     print(f"gzip_match_count={len(gzip_matches)}")
     print(f"gzip_match={gzip_matches[0]['line'].split(' ', 2)[2]}")
     print(f"old_entry_filtered={str(not old_matches).lower()}")
+    print("summary_24h=" + " ".join(
+        f"{kind}:{count}" for kind, count in summary_counts.items()
+    ))
+    print("triage_view=critical TCP status + recent ERROR log")
+    print("evidence_relation=independent_local_examples")
     print("data_scope=local_sample_only")
 
 

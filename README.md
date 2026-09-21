@@ -6,9 +6,9 @@
 
 面向 Linux 服务器日常运维场景的轻量工具集：**资源监控告警、服务状态巡检、日志检索、CI/CD 发布与容器管理**。
 
-项目核心开发时间 **2022.07 – 2022.10**，本仓库于 2026 年重新整理文档并开源，用于个人项目归档与求职展示。原有运维脚本与项目经历未因本次展示更新而改写；新增加的架构图、本地演示和测试仅用于解释与核对现有代码能力。
+项目核心开发时间 **2022.07 – 2022.10**，本仓库于 2026 年重新整理文档并开源，用于个人项目归档与求职展示。2026 年补充的架构图、本地演示与测试用于解释和核对代码能力，并修复了日志错误汇总入口的参数传递问题；不代表 2022 年已完成这些展示与修复工作。
 
-**先看可复现证据：**运行 `python demo/local_demo.py`，仅在 `127.0.0.1` 上开启临时 TCP 监听，并用仓库内的样例日志模板演示巡检、报告、Prometheus 格式指标文本和日志检索。它不会连接真实业务服务、发送邮件、部署监控系统或使用生产日志。输出示例与验证状态见[第 7 节](#7-验证状态与已知边界)。
+**先看可复现证据：**运行 `python demo/local_demo.py`，仅在 `127.0.0.1` 上开启临时 TCP 监听，并用仓库内的样例日志模板演示巡检、报告、Prometheus 格式指标文本、日志检索及错误类型汇总。输出将异常服务状态与近期错误日志并排呈现，作为定位问题时的两类线索；两者是独立生成的样例，**不表示存在真实因果关系**。演示不会连接真实业务服务、发送邮件、部署监控系统或使用生产日志。输出示例与验证状态见[第 7 节](#7-验证状态与已知边界)。
 
 ---
 
@@ -94,7 +94,7 @@ flowchart LR
 
 **文件**：[monitoring_tool/service_checker.py](monitoring_tool/service_checker.py)
 
-`LogSearcher` 类：按正则模式检索日志，支持 `.gz` 压缩日志和按时间范围过滤。本地演示验证了这些直接检索能力；错误类型汇总入口尚未通过运行验证，限制见第 7 节。
+`LogSearcher` 类：按正则模式检索日志，支持 `.gz` 压缩日志、按时间范围过滤及按 ERROR / WARNING / CRITICAL / FAILED / TIMEOUT 汇总。本地演示验证了这些能力；汇总沿用直接检索的每文件每类型最多 100 条上限，不是无限量日志的全量统计，限制见第 7 节。
 
 ### 3.5 Jenkins 发布流水线
 
@@ -150,6 +150,9 @@ plain_match=ERROR sample request timed out
 gzip_match_count=1
 gzip_match=WARNING compressed sample retry
 old_entry_filtered=true
+summary_24h=ERROR:1 WARNING:1 CRITICAL:0 FAILED:0 TIMEOUT:0
+triage_view=critical TCP status + recent ERROR log
+evidence_relation=independent_local_examples
 data_scope=local_sample_only
 ```
 
@@ -201,10 +204,11 @@ intelligent-network-ops/
 ├── assets/
 │   └── architecture-value.svg  # 基于现有代码的架构与价值示意图，非运行截图
 ├── demo/
-│   ├── local_demo.py           # 2026 年新增的隔离本地演示，不修改原脚本
+│   ├── local_demo.py           # 2026 年新增的隔离本地演示
 │   └── sample_logs.txt         # 含动态时间占位符的样例日志模板
 ├── tests/
-│   └── test_local_demo.py      # 本地演示的黑盒测试
+│   ├── test_local_demo.py      # 本地演示的黑盒与指标解析测试
+│   └── test_error_summary.py   # 错误汇总与时间窗口测试
 ├── monitoring_tool/             # 监控告警模块
 │   ├── service_checker.py       # 服务状态检查 + 日志检索（Python）
 │   └── deploy_monitoring.sh     # Prometheus + Grafana 部署脚本（Bash）
@@ -223,13 +227,13 @@ intelligent-network-ops/
 
 | 环节 | 状态 | 本次依据 | 尚不能据此声称 |
 |------|------|----------|----------------|
-| TCP 服务巡检、报告与 Prometheus 格式指标文本 | **已验证：隔离本地演示** | `127.0.0.1` 临时监听与未监听端口；演示脚本调用原有类，生成健康/异常状态、报告和指标字符串；2 个黑盒测试通过 | `.prom` 文件写入、Node Exporter textfile collector 接入、生产告警效果 |
+| TCP 服务巡检、报告与 Prometheus 格式指标文本 | **已验证：隔离本地演示** | `127.0.0.1` 临时监听与未监听端口；演示脚本调用原有类，生成健康/异常状态、报告和指标字符串；相关演示由 3 个黑盒测试覆盖 | `.prom` 文件写入、Node Exporter textfile collector 接入、生产告警效果 |
 | 文本及 `.gz` 日志检索、24 小时时间过滤 | **已验证：隔离本地演示** | 样例日志模板在临时目录生成；两类日志各命中 1 条，48 小时前记录被过滤 | 真实业务日志检索效率或覆盖率 |
 | Python 与 Bash 脚本语法 | **仅静态检查** | `py_compile` 检查 `service_checker.py`、`cicd_manager.py` 与演示脚本；`bash -n` 检查两个 Bash 脚本 | 脚本在目标 Linux 环境完成部署或业务联调 |
 | Prometheus / Grafana 部署、指标文件与 collector 接入、邮件告警、Docker 容器操作及 Jenkins 发布 | **需要真实 Linux 与相关服务环境** | 仓库包含部署脚本和流水线定义，本次没有执行安装、指标文件写入/采集、发信、构建、推送或部署 | 端到端监控、CI/CD 与生产运行效果 |
-| `LogSearcher.get_error_summary()` | **未通过运行验证** | 当前方法向 `search_all_logs()` 传入其未接收的 `since_hours` 参数；演示只覆盖直接日志检索 | 错误类型汇总统计已可用 |
+| `LogSearcher.get_error_summary()` | **已验证：隔离本地演示** | 修复 `since_hours` 参数透传；对普通和 `.gz` 样例日志运行 24 小时汇总，另用测试验证 1 小时窗口均不计入 2 小时前记录；本次共 5 项自动化测试通过 | 无上限的全量计数、真实业务日志准确率或异常原因自动判定 |
 
-其他边界：Node Exporter / cAdvisor 安装不在本仓库；`Jenkinsfile` 依赖应用仓库中的 `Dockerfile` / `docker-compose.yml`；`cicd_manager.py` 的「依赖安装 / 单元测试」阶段含占位实现。脚本生成的 Prometheus 配置未配置 Alertmanager 目标，Python 邮件接口也未在本次演示中发信。
+其他边界：错误汇总按关键词匹配，同一行可能归入多个类型，每个文件每种类型最多返回 100 条；它是检索结果摘要，不是去重后的故障数。Node Exporter / cAdvisor 安装不在本仓库；`Jenkinsfile` 依赖应用仓库中的 `Dockerfile` / `docker-compose.yml`；`cicd_manager.py` 的「依赖安装 / 单元测试」阶段含占位实现。脚本生成的 Prometheus 配置未配置 Alertmanager 目标，Python 邮件接口也未在本次演示中发信。
 
 ---
 
@@ -237,6 +241,6 @@ intelligent-network-ops/
 
 - **核心开发时间**：2022.07 – 2022.10
 - **工作内容**：面向 Linux 服务器巡检与异常发现需求，编写监控部署、服务巡检、日志检索与发布流水线脚本
-- **2026 年**：重新整理目录结构、补充 README 与架构文档、清理敏感信息后开源归档；增加明确标注的架构示意图与隔离本地演示
+- **2026 年**：重新整理目录结构、补充 README 与架构文档、清理敏感信息后开源归档；增加明确标注的架构示意图、隔离本地演示与测试，并修复错误汇总的参数传递
 
 > 本仓库未伪造 2022 年的提交记录；现有 Git 历史为整理归档时生成的提交。

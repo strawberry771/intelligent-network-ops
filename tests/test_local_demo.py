@@ -40,6 +40,13 @@ class LocalDemoTests(unittest.TestCase):
         self.assertIn("old_entry_filtered=true", result.stdout)
         self.assertIn("data_scope=local_sample_only", result.stdout)
 
+    def test_triage_view_reports_error_summary_without_claiming_causality(self):
+        result = self.run_demo()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("summary_24h=ERROR:1 WARNING:1 CRITICAL:0 FAILED:0 TIMEOUT:0", result.stdout)
+        self.assertIn("triage_view=critical TCP status + recent ERROR log", result.stdout)
+        self.assertIn("evidence_relation=independent_local_examples", result.stdout)
+
     def test_metric_values_come_from_the_generated_metrics_text(self):
         from demo import local_demo
 
